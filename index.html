@@ -20,9 +20,55 @@
 <script>
   // 구글에 올라가 있는 실제 앱 주소. 앱을 고쳐도 '배포 관리 → 새 버전'으로 하면 이 주소는 그대로다
   var APP_URL = "https://script.google.com/macros/s/AKfycbzXLLMJkt3ZmRyFT-SCFmZvOXQMnqC-3I-0dz3ziMsyrnVKmCSt5qlXV6wlJ_dXL29dLQ/exec";
+  var FIREBASE_SDK = "https://www.gstatic.com/firebasejs/10.14.1/";
   // ?who=이부장 처럼 붙여 보낸 링크면 그 이름을 앱에 넘긴다
   document.getElementById("app").src = APP_URL + location.search;
-  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});
+  var swReady = ("serviceWorker" in navigator) ? navigator.serviceWorker.register("sw.js").then(function () { return navigator.serviceWorker.ready; }) : null;
+
+  function lsGet(k) { try { return localStorage.getItem(k) || ""; } catch (e) { return ""; } }
+  function lsSet(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function supported() { return !!swReady && "Notification" in window && "PushManager" in window; }
+  function loadScript(src) {
+    return new Promise(function (res, rej) { var s = document.createElement("script"); s.src = src; s.onload = res; s.onerror = function () { rej(new Error("알림 모듈을 불러오지 못했어요. 인터넷 연결을 확인해 주세요.")); }; document.head.appendChild(s); });
+  }
+  var fbLoaded = null;
+  function loadFirebase() {
+    if (!fbLoaded) fbLoaded = loadScript(FIREBASE_SDK + "firebase-app-compat.js").then(function () { return loadScript(FIREBASE_SDK + "firebase-messaging-compat.js"); });
+    return fbLoaded;
+  }
+
+  // 알림 허용을 받고, 이 휴대폰의 알림 주소(토큰)를 만들어 앱에 돌려준다
+  function enablePush(cfg, vapid) {
+    if (!supported()) return Promise.reject(new Error("이 휴대폰(브라우저)은 알림을 지원하지 않아요."));
+    return Notification.requestPermission().then(function (p) {
+      if (p !== "granted") throw new Error("알림을 '허용'해야 받을 수 있어요. 휴대폰 설정 → 애플리케이션 → 신명금속 → 알림을 켜 주세요.");
+      return loadFirebase();
+    }).then(function () {
+      var app = firebase.apps.length ? firebase.app() : firebase.initializeApp(cfg);
+      return swReady.then(function (reg) { return firebase.messaging(app).getToken({ vapidKey: vapid, serviceWorkerRegistration: reg }); });
+    }).then(function (tok) {
+      if (!tok) throw new Error("알림 등록에 실패했어요. 다시 눌러 주세요.");
+      lsSet("pushToken", tok);
+      return tok;
+    });
+  }
+
+  // 안에 든 앱(구글 쪽 주소)이 보내는 부탁만 받는다
+  window.addEventListener("message", function (e) {
+    var d = e.data;
+    if (!d || d.sinmyung !== 1) return;
+    var host = ""; try { host = new URL(e.origin).hostname; } catch (x) { return; }
+    if (!/\.googleusercontent\.com$/.test(host)) return;
+    function reply(r) { r.sinmyung = 1; r.id = d.id; e.source.postMessage(r, e.origin); }
+    if (d.t === "status") {
+      reply({ ok: true, supported: supported(), permission: ("Notification" in window) ? Notification.permission : "unsupported", token: lsGet("pushToken") });
+    } else if (d.t === "enable") {
+      enablePush(d.config, d.vapid).then(
+        function (tok) { reply({ ok: true, token: tok }); },
+        function (err) { reply({ ok: false, error: (err && err.message && /[가-힣]/.test(err.message)) ? err.message : "알림을 켜지 못했어요. (" + (err && (err.code || err.message) || "오류") + ")" }); }
+      );
+    }
+  });
 </script>
 </body>
 </html>
