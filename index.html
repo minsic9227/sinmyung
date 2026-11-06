@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>신명금속 어플</title>
+<meta name="theme-color" content="#101519">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+  /* 구글 Apps Script 앱을 화면 전체에 띄우는 껍데기. 앱 안에 넣으면 구글 안내 줄이 붙지 않는다 */
+  html, body { margin: 0; height: 100%; background: #101519; }
+  iframe { position: fixed; inset: 0; width: 100%; height: 100%; border: 0; display: block; }
+  @media (prefers-color-scheme: light) { html, body { background: #e9edf0; } }
+</style>
+</head>
+<body>
+<iframe id="app" title="신명금속 현장보드" allow="camera; clipboard-write"></iframe>
+<script>
+  // 구글에 올라가 있는 실제 앱 주소. 앱을 고쳐도 '배포 관리 → 새 버전'으로 하면 이 주소는 그대로다
+  var APP_URL = "https://script.google.com/macros/s/AKfycbzXLLMJkt3ZmRyFT-SCFmZvOXQMnqC-3I-0dz3ziMsyrnVKmCSt5qlXV6wlJ_dXL29dLQ/exec";
+  // ?who=이부장 처럼 붙여 보낸 링크면 그 이름을 앱에 넘긴다
+  document.getElementById("app").src = APP_URL + location.search;
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(function () {});
+</script>
+</body>
+</html>
